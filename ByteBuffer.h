@@ -107,6 +107,12 @@ public:
 	static UByteBuffer* CreateByteBufferFromString(const FString& Base64Data);
 
 	UFUNCTION(BlueprintCallable, Category = "ByteBuffer")
+	static FString ByteArrayToHexString(const TArray<uint8>& ByteArray);
+
+	UFUNCTION(BlueprintCallable, Category = "ByteBuffer")
+	static FString ByteArrayToBinaryString(const TArray<uint8>& ByteArray);
+
+	UFUNCTION(BlueprintCallable, Category = "ByteBuffer")
 	UByteBuffer* PutId(const FString& Id);
 
 	UFUNCTION(BlueprintCallable, Category = "ByteBuffer")
@@ -175,7 +181,10 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "ByteBuffer")
 	void AppendBuffer(UByteBuffer* OtherBuffer);
-		
+
+	UFUNCTION(BlueprintCallable, Category = "ByteBuffer")
+	TArray<UByteBuffer*> SplitPackets(UByteBuffer* CombinedBuffer);
+
 private:
 	TArray<uint8> Buffer;
 	int32 Position = 0;

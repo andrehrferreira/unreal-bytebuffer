@@ -202,13 +202,18 @@ int32 UByteBuffer::GetInt32()
         return result;
     }
     else {
-        UE_LOG(LogTemp, Error, TEXT("Erro no pacote %d"), Packet);
+        UE_LOG(LogTemp, Error, TEXT("Error packet %d"), Packet);
         return 0;
     }
 }
 
 uint32 UByteBuffer::GetUInt32()
 {
+    if (Position + 4 > Buffer.Num()) {
+        UE_LOG(LogTemp, Error, TEXT("Attempted to read beyond buffer bounds: Position=%d, BufferSize=%d"), Position, Buffer.Num());
+        return 0; 
+    }
+
     uint32 result = 0;
 
     result |= static_cast<uint32>(Buffer[Position]) << 0;
@@ -231,6 +236,11 @@ UByteBuffer* UByteBuffer::PutByte(uint8 Value)
 
 uint8 UByteBuffer::GetByte()
 {
+    if (Position >= Buffer.Num()) {
+        UE_LOG(LogTemp, Error, TEXT("Attempted to read beyond buffer bounds: Position=%d, BufferSize=%d"), Position, Buffer.Num());
+        return 0; 
+    }
+
     uint8 Value = Buffer[Position];
     Position += 1;
     return Value;
@@ -276,6 +286,11 @@ UByteBuffer* UByteBuffer::PutFloat(float Value) {
 }
 
 float UByteBuffer::GetFloat() {
+    if (Position + sizeof(float) > Buffer.Num()) {
+        UE_LOG(LogTemp, Error, TEXT("Attempted to read beyond buffer bounds: Position=%d, BufferSize=%d"), Position, Buffer.Num());
+        return 0.0f; 
+    }
+
     if (Position + sizeof(float) > Buffer.Num()) 
         return 0.0f;
     
@@ -370,7 +385,6 @@ bool UByteBuffer::ReadDataFromBuffer(const TMap<FString, FString>& DataSequence,
         }
         else if (Elem.Value == FString("string") || Elem.Value == FString("str"))
         {
-            UE_LOG(LogTemp, Log, TEXT("Get String"));
             NewValue.ValueType = EDynamicValueType::String;
             NewValue.StringValue = GetString();
         }
@@ -454,4 +468,65 @@ void UByteBuffer::AppendBuffer(UByteBuffer* OtherBuffer)
     Buffer.Reserve(Buffer.Num() + OtherBuffer->Buffer.Num());
     Buffer.Append(OtherBuffer->Buffer);
     Position = Buffer.Num();
+}
+
+TArray<UByteBuffer*> UByteBuffer::SplitPackets(UByteBuffer* CombinedBuffer) {
+    TArray<UByteBuffer*> Packets;
+    const TArray<uint8>& BufferData = CombinedBuffer->GetBuffer();
+    int32 StartPosition = 1; 
+    int32 BufferSize = BufferData.Num();
+
+    for (int32 i = 1; i <= BufferSize - 4; ++i) {
+        if (
+            BufferData[i] == 0xFE && 
+            BufferData[i + 1] == 0xFE && 
+            BufferData[i + 2] == 0xFE && 
+            BufferData[i + 3] == 0xFE
+        ) {
+            if (i > StartPosition) {
+                TArray<uint8> PacketData;
+                PacketData.Append(&BufferData[StartPosition], i - StartPosition);
+                UByteBuffer* PacketBuffer = UByteBuffer::CreateByteBuffer(PacketData);
+                Packets.Add(PacketBuffer);
+            }
+
+            StartPosition = i + 4;
+            i += 3;
+        }
+    }
+
+    if (StartPosition < BufferSize) {
+        TArray<uint8> PacketData;
+        PacketData.Append(&BufferData[StartPosition], BufferSize - StartPosition);
+        UByteBuffer* PacketBuffer = UByteBuffer::CreateByteBuffer(PacketData);
+        Packets.Add(PacketBuffer);
+    }
+
+    return Packets;
+}
+
+FString UByteBuffer::ByteArrayToHexString(const TArray<uint8>& ByteArray)
+{
+    FString HexString;
+
+    for (uint8 Byte : ByteArray)
+        HexString += FString::Printf(TEXT("%02x"), Byte);
+
+    return HexString;
+}
+
+FString UByteBuffer::ByteArrayToBinaryString(const TArray<uint8>& ByteArray)
+{
+    FString IntString;
+
+    for (int32 i = 0; i < ByteArray.Num(); ++i)
+    {
+        IntString += FString::Printf(TEXT("%d"), ByteArray[i]);
+        if (i < ByteArray.Num() - 1)
+        {
+            IntString += TEXT(", ");
+        }
+    }
+
+    return IntString;
 }
